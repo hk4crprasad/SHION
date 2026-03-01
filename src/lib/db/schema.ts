@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { text, integer, pgTable, serial, jsonb } from 'drizzle-orm/pg-core';
+import { text, pgTable, serial, jsonb, boolean, timestamp } from 'drizzle-orm/pg-core';
 import { Block } from '../types';
 import { SearchSources } from '../agents/search/types';
 
@@ -34,3 +34,26 @@ export const chats = pgTable('chats', {
     .$type<DBFile[]>()
     .default(sql`'[]'::jsonb`),
 });
+
+export const users = pgTable('users', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('passwordHash').notNull(),
+  emailVerified: boolean('emailVerified').notNull().default(false),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+});
+
+export const verificationTokens = pgTable('verificationTokens', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expiresAt').notNull(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
