@@ -8,6 +8,10 @@ const envSchema = z.object({
     GEMINI_API_KEY: z.string().optional(),
     GROQ_API_KEY: z.string().optional(),
     SEARXNG_URL: z.string().optional(),
+    AZURE_OPENAI_API_KEY: z.string().optional(),
+    AZURE_OPENAI_ENDPOINT: z.string().optional(),
+    AZURE_OPENAI_DEPLOYMENT: z.string().optional(),
+    AZURE_OPENAI_API_VERSION: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;
@@ -25,6 +29,13 @@ try {
 }
 
 export const getEnv = () => env;
+
+export const getAzureEnv = () => ({
+    apiKey: env.AZURE_OPENAI_API_KEY,
+    endpoint: env.AZURE_OPENAI_ENDPOINT,
+    deployment: env.AZURE_OPENAI_DEPLOYMENT,
+    apiVersion: env.AZURE_OPENAI_API_VERSION,
+});
 
 // Parse a comma-separated model list env var into an array of keys
 export const parseModelList = (raw: string | undefined): string[] =>
