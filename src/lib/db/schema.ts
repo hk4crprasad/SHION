@@ -57,3 +57,20 @@ export const verificationTokens = pgTable('verificationTokens', {
   expiresAt: timestamp('expiresAt').notNull(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
+
+export const subscriptions = pgTable('subscriptions', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('userId')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  razorpaySubscriptionId: text('razorpaySubscriptionId').notNull().unique(),
+  status: text('status', {
+    enum: ['created', 'authenticated', 'active', 'pending', 'halted', 'cancelled', 'completed', 'expired'],
+  }).notNull().default('created'),
+  currentPeriodEnd: timestamp('currentPeriodEnd'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})

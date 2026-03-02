@@ -57,6 +57,7 @@ type ChatContext = {
     rewrite?: boolean,
   ) => Promise<void>;
   rewrite: (messageId: string) => void;
+  stopMessage: () => void;
   setChatModelProvider: (provider: ChatModelProvider) => void;
   setEmbeddingModelProvider: (provider: EmbeddingModelProvider) => void;
 };
@@ -257,6 +258,7 @@ export const chatContext = createContext<ChatContext>({
   embeddingModelProvider: { key: '', providerId: '' },
   researchEnded: false,
   rewrite: () => {},
+  stopMessage: () => {},
   sendMessage: async () => {},
   setFileIds: () => {},
   setFiles: () => {},
@@ -404,6 +406,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   const isReconnectingRef = useRef(false);
   const handledMessageEndRef = useRef<Set<string>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const stopMessage = () => {
+    abortControllerRef.current?.abort();
+  };
 
   const checkReconnect = async () => {
     if (isReconnectingRef.current) return;
@@ -742,8 +749,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messageIndex = messages.findIndex((m) => m.messageId === messageId);
 
+    abortControllerRef.current = new AbortController();
+
     const res = await fetch('/api/chat', {
       method: 'POST',
+      signal: abortControllerRef.current.signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -785,22 +795,37 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messageHandler = getMessageHandler(newMessage);
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      partialChunk += decoder.decode(value, { stream: true });
+        partialChunk += decoder.decode(value, { stream: true });
 
-      try {
-        const messages = partialChunk.split('\n');
-        for (const msg of messages) {
-          if (!msg.trim()) continue;
-          const json = JSON.parse(msg);
-          messageHandler(json);
+        try {
+          const messages = partialChunk.split('\n');
+          for (const msg of messages) {
+            if (!msg.trim()) continue;
+            const json = JSON.parse(msg);
+            messageHandler(json);
+          }
+          partialChunk = '';
+        } catch (error) {
+          console.warn('Incomplete JSON, waiting for next chunk...');
         }
-        partialChunk = '';
-      } catch (error) {
-        console.warn('Incomplete JSON, waiting for next chunk...');
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.messageId === messageId
+              ? { ...msg, status: 'completed' as const }
+              : msg,
+          ),
+        );
+        setLoading(false);
+      } else {
+        throw err;
       }
     }
   };
@@ -827,6 +852,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setSources,
         setOptimizationMode,
         rewrite,
+        stopMessage,
         sendMessage,
         setChatModelProvider,
         chatModelProvider,

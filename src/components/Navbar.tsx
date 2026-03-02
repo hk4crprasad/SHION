@@ -1,6 +1,8 @@
-import { Clock, Edit, Share, Trash, FileText, FileDown } from 'lucide-react';
+import { Clock, Crown, Edit, Share, Trash, FileText, FileDown } from 'lucide-react';
 import { Message } from './ChatWindow';
 import { useEffect, useState, Fragment } from 'react';
+import { usePremium } from '@/lib/hooks/usePremium';
+import UpgradeModal from '@/components/UpgradeModal';
 import { formatTimeDifference } from '@/lib/utils';
 import DeleteChat from './DeleteChat';
 import {
@@ -31,26 +33,23 @@ const exportAsMarkdown = (sections: Section[], title: string) => {
   const date = new Date(
     sections[0].message.createdAt || Date.now(),
   ).toLocaleString();
-  let md = `# 💬 Chat Export: ${title}\n\n`;
+  let md = `# Chat Export: ${title}\n\n`;
   md += `*Exported on: ${date}*\n\n---\n`;
 
-  sections.forEach((section, idx) => {
-    md += `\n---\n`;
-    md += `**🧑 User**  
-`;
+  sections.forEach((section) => {
+    md += `\n## User\n`;
     md += `*${new Date(section.message.createdAt).toLocaleString()}*\n\n`;
-    md += `> ${section.message.query.replace(/\n/g, '\n> ')}\n`;
+    md += `${section.message.query}\n`;
 
-    if (section.message.responseBlocks.length > 0) {
-      md += `\n---\n`;
-      md += `**🤖 Assistant**  
-`;
+    const responseText = section.message.responseBlocks
+      .filter((b) => b.type === 'text')
+      .map((block) => block.data)
+      .join('\n');
+
+    if (responseText.trim()) {
+      md += `\n## Assistant\n`;
       md += `*${new Date(section.message.createdAt).toLocaleString()}*\n\n`;
-      md += `> ${section.message.responseBlocks
-        .filter((b) => b.type === 'text')
-        .map((block) => block.data)
-        .join('\n')
-        .replace(/\n/g, '\n> ')}\n`;
+      md += `${responseText}\n`;
     }
 
     const sourceResponseBlock = section.message.responseBlocks.find(
@@ -62,145 +61,192 @@ const exportAsMarkdown = (sections: Section[], title: string) => {
       sourceResponseBlock.data &&
       sourceResponseBlock.data.length > 0
     ) {
-      md += `\n**Citations:**\n`;
+      md += `\n### Sources\n`;
       sourceResponseBlock.data.forEach((src: any, i: number) => {
+        const srcTitle = src.metadata?.title || src.metadata?.url || '';
         const url = src.metadata?.url || '';
-        md += `- [${i + 1}] [${url}](${url})\n`;
+        md += `${i + 1}. [${srcTitle}](${url})\n`;
       });
     }
+
+    md += '\n---\n';
   });
-  md += '\n---\n';
+
   downloadFile(`${title || 'chat'}.md`, md, 'text/markdown');
 };
 
+const stripMarkdown = (text: string): string => {
+  return text
+    // Remove think/HTML tags
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<citation[^>]*>[\s\S]*?<\/citation>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    // Code blocks (before other replacements)
+    .replace(/```[\s\S]*?```/g, (match) => {
+      // Keep the code content, just remove the fences
+      return match.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
+    })
+    // Horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Headers → add indent to make them distinct
+    .replace(/^#{1,6}\s+(.+)$/gm, '$1')
+    // Bold + italic together
+    .replace(/\*{3}(.+?)\*{3}/g, '$1')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    // Italic
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    // Inline code
+    .replace(/`(.+?)`/g, '$1')
+    // Images
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    // Links
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Strikethrough
+    .replace(/~~(.+?)~~/g, '$1')
+    // Blockquotes
+    .replace(/^>\s*/gm, '')
+    // Unordered lists
+    .replace(/^[ \t]*[-*+]\s+/gm, '• ')
+    // Collapse 3+ newlines to 2
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 const exportAsPDF = (sections: Section[], title: string) => {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
   const date = new Date(
     sections[0]?.message?.createdAt || Date.now(),
   ).toLocaleString();
-  let y = 15;
-  const pageHeight = doc.internal.pageSize.height;
-  doc.setFontSize(18);
-  doc.text(`Chat Export: ${title}`, 10, y);
-  y += 8;
-  doc.setFontSize(11);
-  doc.setTextColor(100);
-  doc.text(`Exported on: ${date}`, 10, y);
-  y += 8;
-  doc.setDrawColor(200);
-  doc.line(10, y, 200, y);
-  y += 6;
-  doc.setTextColor(30);
+  let y = margin;
+
+  const addText = (
+    text: string,
+    x: number,
+    fontSize: number,
+    color: [number, number, number],
+    fontStyle: 'normal' | 'bold' = 'normal',
+    maxWidth?: number,
+  ): void => {
+    doc.setFontSize(fontSize);
+    doc.setTextColor(...color);
+    doc.setFont('helvetica', fontStyle);
+    const lines = doc.splitTextToSize(text, maxWidth ?? contentWidth);
+    const lineHeight = fontSize * 0.352778 * 1.4; // pt → mm × line-height factor
+    for (const line of lines) {
+      if (y > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, x, y);
+      y += lineHeight;
+    }
+  };
+
+  const addSpacer = (h: number) => {
+    y += h;
+    if (y > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const addDivider = (color: [number, number, number] = [220, 220, 220]) => {
+    addSpacer(2);
+    if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+    doc.setDrawColor(...color);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageWidth - margin, y);
+    addSpacer(4);
+  };
+
+  // ── Title block ──
+  addText(`Chat Export`, margin, 20, [30, 30, 30], 'bold');
+  addSpacer(2);
+  addText(title, margin, 13, [80, 80, 80]);
+  addSpacer(1);
+  addText(`Exported on: ${date}`, margin, 9, [140, 140, 140]);
+  addDivider([180, 180, 180]);
 
   sections.forEach((section, idx) => {
-    if (y > pageHeight - 30) {
-      doc.addPage();
-      y = 15;
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.text('User', 10, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(120);
-    doc.text(`${new Date(section.message.createdAt).toLocaleString()}`, 40, y);
-    y += 6;
-    doc.setTextColor(30);
-    doc.setFontSize(12);
-    const userLines = doc.splitTextToSize(section.message.query, 180);
-    for (let i = 0; i < userLines.length; i++) {
-      if (y > pageHeight - 20) {
-        doc.addPage();
-        y = 15;
-      }
-      doc.text(userLines[i], 12, y);
-      y += 6;
-    }
-    y += 6;
-    doc.setDrawColor(230);
-    if (y > pageHeight - 10) {
-      doc.addPage();
-      y = 15;
-    }
-    doc.line(10, y, 200, y);
-    y += 4;
+    // ── User turn ──
+    addText('You', margin, 9, [100, 100, 100], 'bold');
+    addSpacer(1);
+    addText(
+      stripMarkdown(section.message.query),
+      margin,
+      11,
+      [30, 30, 30],
+      'normal',
+      contentWidth,
+    );
+    addSpacer(4);
 
-    if (section.message.responseBlocks.length > 0) {
-      if (y > pageHeight - 30) {
-        doc.addPage();
-        y = 15;
-      }
-      doc.setFont('helvetica', 'bold');
-      doc.text('Assistant', 10, y);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(120);
-      doc.text(
-        `${new Date(section.message.createdAt).toLocaleString()}`,
-        40,
-        y,
+    // ── Assistant turn ──
+    const rawText = section.message.responseBlocks
+      .filter((b) => b.type === 'text')
+      .map((b) => b.data)
+      .join('\n');
+
+    if (rawText.trim()) {
+      addText('Assistant', margin, 9, [37, 99, 235], 'bold');
+      addSpacer(1);
+      addText(
+        stripMarkdown(rawText),
+        margin,
+        11,
+        [30, 30, 30],
+        'normal',
+        contentWidth,
       );
-      y += 6;
-      doc.setTextColor(30);
-      doc.setFontSize(12);
-      const assistantLines = doc.splitTextToSize(
-        section.parsedTextBlocks.join('\n'),
-        180,
-      );
-      for (let i = 0; i < assistantLines.length; i++) {
-        if (y > pageHeight - 20) {
-          doc.addPage();
-          y = 15;
-        }
-        doc.text(assistantLines[i], 12, y);
-        y += 6;
-      }
-
-      const sourceResponseBlock = section.message.responseBlocks.find(
-        (block) => block.type === 'source',
-      ) as SourceBlock | undefined;
-
-      if (
-        sourceResponseBlock &&
-        sourceResponseBlock.data &&
-        sourceResponseBlock.data.length > 0
-      ) {
-        doc.setFontSize(11);
-        doc.setTextColor(80);
-        if (y > pageHeight - 20) {
-          doc.addPage();
-          y = 15;
-        }
-        doc.text('Citations:', 12, y);
-        y += 5;
-        sourceResponseBlock.data.forEach((src: any, i: number) => {
-          const url = src.metadata?.url || '';
-          if (y > pageHeight - 15) {
-            doc.addPage();
-            y = 15;
-          }
-          doc.text(`- [${i + 1}] ${url}`, 15, y);
-          y += 5;
-        });
-        doc.setTextColor(30);
-      }
-      y += 6;
-      doc.setDrawColor(230);
-      if (y > pageHeight - 10) {
-        doc.addPage();
-        y = 15;
-      }
-      doc.line(10, y, 200, y);
-      y += 4;
+      addSpacer(4);
     }
+
+    // ── Sources ──
+    const sourceBlock = section.message.responseBlocks.find(
+      (block) => block.type === 'source',
+    ) as SourceBlock | undefined;
+
+    if (sourceBlock?.data?.length) {
+      addText('Sources', margin, 9, [100, 100, 100], 'bold');
+      addSpacer(1);
+      sourceBlock.data.forEach((src: any, i: number) => {
+        const srcTitle = src.metadata?.title || src.metadata?.url || '';
+        const url = src.metadata?.url || '';
+        addText(
+          `${i + 1}. ${srcTitle}`,
+          margin,
+          9,
+          [37, 99, 235],
+          'normal',
+          contentWidth,
+        );
+        if (url && url !== srcTitle) {
+          addText(`   ${url}`, margin, 8, [140, 140, 140], 'normal', contentWidth);
+        }
+      });
+      addSpacer(2);
+    }
+
+    if (idx < sections.length - 1) addDivider();
   });
+
   doc.save(`${title || 'chat'}.pdf`);
 };
 
 const Navbar = () => {
   const [title, setTitle] = useState<string>('');
   const [timeAgo, setTimeAgo] = useState<string>('');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const { sections, chatId } = useChat();
+  const { isPremium, refresh } = usePremium();
 
   useEffect(() => {
     if (sections.length > 0 && sections[0].message) {
@@ -234,6 +280,7 @@ const Navbar = () => {
   }, []);
 
   return (
+    <>
     <div className="sticky -mx-4 lg:mx-0 top-0 z-40 bg-light-primary/95 dark:bg-dark-primary/95 backdrop-blur-sm border-b border-light-200/50 dark:border-dark-200/30">
       <div className="px-4 lg:px-6 py-4">
         <div className="flex items-center justify-between">
@@ -257,6 +304,16 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-1 min-w-0">
+            <button
+              onClick={() => { if (!isPremium) setUpgradeOpen(true); }}
+              title={isPremium ? 'Premium Active' : 'Upgrade to Premium'}
+              className="p-2 rounded-lg hover:bg-light-secondary dark:hover:bg-dark-secondary transition-colors duration-200"
+            >
+              <Crown
+                size={16}
+                className={isPremium ? 'text-amber-500' : 'text-black/40 dark:text-white/40'}
+              />
+            </button>
             <Popover className="relative">
               <PopoverButton className="p-2 rounded-lg hover:bg-light-secondary dark:hover:bg-dark-secondary transition-colors duration-200">
                 <Share size={16} className="text-black/60 dark:text-white/60" />
@@ -321,7 +378,12 @@ const Navbar = () => {
         </div>
       </div>
     </div>
-  );
+    <UpgradeModal
+      isOpen={upgradeOpen}
+      setIsOpen={setUpgradeOpen}
+      onSuccess={refresh}
+    />
+  </>);
 };
 
 export default Navbar;

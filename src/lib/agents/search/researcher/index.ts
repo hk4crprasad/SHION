@@ -151,34 +151,44 @@ class Researcher {
         break;
       }
 
-      if (finalToolCalls[finalToolCalls.length - 1].name === 'done') {
-        break;
+      const isDone =
+        finalToolCalls[finalToolCalls.length - 1].name === 'done';
+
+      // Execute all non-done tool calls (searches, etc.) before breaking
+      const callsToExecute = isDone
+        ? finalToolCalls.slice(0, -1)
+        : finalToolCalls;
+
+      if (callsToExecute.length > 0) {
+        agentMessageHistory.push({
+          role: 'assistant',
+          content: '',
+          tool_calls: finalToolCalls,
+        });
+
+        const actionResults = await ActionRegistry.executeAll(callsToExecute, {
+          llm: input.config.llm,
+          embedding: input.config.embedding,
+          session: session,
+          researchBlockId: researchBlockId,
+          fileIds: input.config.fileIds,
+        });
+
+        actionOutput.push(...actionResults);
+
+        actionResults.forEach((action, i) => {
+          agentMessageHistory.push({
+            role: 'tool',
+            id: callsToExecute[i].id,
+            name: callsToExecute[i].name,
+            content: JSON.stringify(action),
+          });
+        });
       }
 
-      agentMessageHistory.push({
-        role: 'assistant',
-        content: '',
-        tool_calls: finalToolCalls,
-      });
-
-      const actionResults = await ActionRegistry.executeAll(finalToolCalls, {
-        llm: input.config.llm,
-        embedding: input.config.embedding,
-        session: session,
-        researchBlockId: researchBlockId,
-        fileIds: input.config.fileIds,
-      });
-
-      actionOutput.push(...actionResults);
-
-      actionResults.forEach((action, i) => {
-        agentMessageHistory.push({
-          role: 'tool',
-          id: finalToolCalls[i].id,
-          name: finalToolCalls[i].name,
-          content: JSON.stringify(action),
-        });
-      });
+      if (isDone) {
+        break;
+      }
     }
 
     const searchResults = actionOutput

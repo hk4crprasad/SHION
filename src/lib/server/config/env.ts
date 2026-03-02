@@ -8,6 +8,9 @@ const envSchema = z.object({
     GEMINI_API_KEY: z.string().optional(),
     GROQ_API_KEY: z.string().optional(),
     SEARXNG_URL: z.string().optional(),
+    RAZORPAY_KEY_ID: z.string().optional(),
+    RAZORPAY_SECRET_KEY: z.string().optional(),
+    RAZORPAY_PLAN: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;

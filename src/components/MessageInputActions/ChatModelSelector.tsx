@@ -1,19 +1,25 @@
 'use client';
 
-import { Cpu, Loader2, Search } from 'lucide-react';
+import { Cpu, Crown, Loader2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { useEffect, useMemo, useState } from 'react';
 import { MinimalProvider } from '@/lib/models/types';
 import { useChat } from '@/lib/hooks/useChat';
 import { AnimatePresence, motion } from 'motion/react';
+import { usePremium } from '@/lib/hooks/usePremium';
+import UpgradeModal from '@/components/UpgradeModal';
+
+const PREMIUM_MODEL_KEYS = new Set(['gpt-5.2-chat', 'gpt-5.2', 'gpt-5.2-pro', 'gpt-oss-120b']);
 
 const ModelSelector = () => {
   const [providers, setProviders] = useState<MinimalProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const { setChatModelProvider, chatModelProvider } = useChat();
+  const { isPremium, refresh } = usePremium();
 
   useEffect(() => {
     const loadProviders = async () => {
@@ -57,6 +63,10 @@ const ModelSelector = () => {
   }, [providers, chatModelProvider]);
 
   const handleModelSelect = (providerId: string, modelKey: string) => {
+    if (PREMIUM_MODEL_KEYS.has(modelKey) && !isPremium) {
+      setUpgradeOpen(true);
+      return;
+    }
     setChatModelProvider({ providerId, key: modelKey });
     localStorage.setItem('chatModelProviderId', providerId);
     localStorage.setItem('chatModelKey', modelKey);
@@ -74,6 +84,7 @@ const ModelSelector = () => {
     .filter((provider) => provider.chatModels.length > 0);
 
   return (
+    <>
     <Popover className="relative w-full max-w-[15rem] md:max-w-md lg:max-w-lg">
       {({ open }) => (
         <>
@@ -137,7 +148,10 @@ const ModelSelector = () => {
                             </div>
 
                             <div className="flex flex-col px-2 py-2 space-y-0.5">
-                              {provider.chatModels.map((model) => (
+                              {provider.chatModels.map((model) => {
+                                const isPremiumModel = PREMIUM_MODEL_KEYS.has(model.key);
+                                const locked = isPremiumModel && !isPremium;
+                                return (
                                 <button
                                   key={model.key}
                                   onClick={() =>
@@ -178,8 +192,14 @@ const ModelSelector = () => {
                                       {model.name}
                                     </p>
                                   </div>
+                                  {locked && (
+                                    <span className="flex items-center gap-1 shrink-0 ml-2 bg-amber-500/20 border border-amber-500/40 px-1.5 rounded-full text-[10px] text-amber-600 dark:text-amber-400">
+                                      <Crown size={9} />
+                                    </span>
+                                  )}
                                 </button>
-                              ))}
+                                );
+                              })}
                             </div>
 
                             {providerIndex < filteredProviders.length - 1 && (
@@ -197,6 +217,12 @@ const ModelSelector = () => {
         </>
       )}
     </Popover>
+    <UpgradeModal
+      isOpen={upgradeOpen}
+      setIsOpen={setUpgradeOpen}
+      onSuccess={refresh}
+    />
+  </>
   );
 };
 
