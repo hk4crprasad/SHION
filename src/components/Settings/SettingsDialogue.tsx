@@ -1,7 +1,6 @@
 import { Dialog, DialogPanel } from '@headlessui/react';
 import {
   ArrowLeft,
-  BrainCog,
   ChevronLeft,
   ExternalLink,
   Search,
@@ -14,7 +13,6 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Loader from '../ui/Loader';
 import { cn } from '@/lib/utils';
-import Models from './Sections/Models/Section';
 import SearchSection from './Sections/Search';
 import Select from '@/components/ui/Select';
 import Personalization from './Sections/Personalization';
@@ -35,14 +33,6 @@ const sections = [
     icon: ToggleRight,
     component: Personalization,
     dataAdd: 'personalization',
-  },
-  {
-    key: 'models',
-    name: 'Models',
-    description: 'Connect to AI services and manage connections.',
-    icon: BrainCog,
-    component: Models,
-    dataAdd: 'modelProviders',
   },
 ];
 

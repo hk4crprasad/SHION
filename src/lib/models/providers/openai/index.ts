@@ -75,6 +75,10 @@ const defaultChatModels: Model[] = [
     key: 'gpt-5.2',
   },
   {
+    name: 'GPT 5.2 Chat',
+    key: 'gpt-5.2-chat',
+  },
+  {
     name: 'GPT 5.2 Pro',
     key: 'gpt-5.2-pro',
   },
@@ -93,6 +97,10 @@ const defaultChatModels: Model[] = [
   {
     name: 'o4 Mini',
     key: 'o4-mini',
+  },
+  {
+    name: 'GPT OSS 120B',
+    key: 'gpt-oss-120b',
   },
 ];
 
@@ -131,6 +139,31 @@ const providerConfigFields: UIConfigField[] = [
   },
 ];
 
+const openAIModelNames: Record<string, string> = {
+  'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+  'gpt-4': 'GPT-4',
+  'gpt-4-turbo': 'GPT-4 Turbo',
+  'gpt-4o': 'GPT-4o',
+  'gpt-4o-2024-05-13': 'GPT-4o (2024-05-13)',
+  'gpt-4o-mini': 'GPT-4o Mini',
+  'gpt-4.1-nano': 'GPT 4.1 Nano',
+  'gpt-4.1-mini': 'GPT 4.1 Mini',
+  'gpt-4.1': 'GPT 4.1',
+  'gpt-5-nano': 'GPT 5 Nano',
+  'gpt-5': 'GPT 5',
+  'gpt-5-mini': 'GPT 5 Mini',
+  'gpt-5-pro': 'GPT 5 Pro',
+  'gpt-5.1': 'GPT 5.1',
+  'gpt-5.2': 'GPT 5.2',
+  'gpt-5.2-chat': 'GPT 5.2 Chat',
+  'gpt-5.2-pro': 'GPT 5.2 Pro',
+  'o1': 'o1',
+  'o3': 'o3',
+  'o3-mini': 'o3 Mini',
+  'o4-mini': 'o4 Mini',
+  'gpt-oss-120b': 'GPT OSS 120B',
+};
+
 class OpenAIProvider extends BaseModelProvider<OpenAIConfig> {
   constructor(id: string, name: string, config: OpenAIConfig) {
     super(id, name, config);
@@ -141,11 +174,11 @@ class OpenAIProvider extends BaseModelProvider<OpenAIConfig> {
     const envEmbedKeys = parseModelList(process.env.OPENAI_EMBED_MODELS);
 
     const chatModels: Model[] = envChatKeys.length > 0
-      ? envChatKeys.map((key) => ({ name: key, key }))
+      ? envChatKeys.map((key) => ({ name: openAIModelNames[key] ?? key, key }))
       : (this.config.baseURL === 'https://api.openai.com/v1' ? defaultChatModels : []);
 
     const embeddingModels: Model[] = envEmbedKeys.length > 0
-      ? envEmbedKeys.map((key) => ({ name: key, key }))
+      ? envEmbedKeys.map((key) => ({ name: openAIModelNames[key] ?? key, key }))
       : (this.config.baseURL === 'https://api.openai.com/v1' ? defaultEmbeddingModels : []);
 
     return { chat: chatModels, embedding: embeddingModels };
