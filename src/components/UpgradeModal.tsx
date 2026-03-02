@@ -35,8 +35,7 @@ const UpgradeModal = ({
       }
       const { paymentUrl } = await res.json();
       setIsOpen(false);
-      window.open(paymentUrl, '_blank');
-      toast.info('Complete payment in the new tab.');
+      window.location.href = paymentUrl;
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
     } finally {
