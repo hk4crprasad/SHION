@@ -66,6 +66,7 @@ export const POST = async () => {
 
     return NextResponse.json({
       subscriptionId: subscription.id,
+      paymentUrl: subscription.short_url,
       keyId: process.env.RAZORPAY_KEY_ID,
       userEmail: user.email,
       userName: user.name,

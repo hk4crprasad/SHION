@@ -11,6 +11,7 @@ const envSchema = z.object({
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_SECRET_KEY: z.string().optional(),
     RAZORPAY_PLAN: z.string().optional(),
+    RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;

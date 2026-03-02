@@ -12,22 +12,6 @@ import {
 import { Crown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
-const loadRazorpayScript = (): Promise<boolean> =>
-  new Promise((resolve) => {
-    if (typeof window.Razorpay !== 'undefined') return resolve(true);
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-
 const UpgradeModal = ({
   isOpen,
   setIsOpen,
@@ -42,12 +26,6 @@ const UpgradeModal = ({
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      const loaded = await loadRazorpayScript();
-      if (!loaded) {
-        toast.error('Failed to load payment gateway. Please try again.');
-        setLoading(false);
-        return;
-      }
       const res = await fetch('/api/subscription/create', { method: 'POST' });
       if (!res.ok) {
         const err = await res.json();
@@ -55,24 +33,13 @@ const UpgradeModal = ({
         setLoading(false);
         return;
       }
-      const { subscriptionId, keyId, userEmail, userName } = await res.json();
-      const rzp = new window.Razorpay({
-        key: keyId,
-        subscription_id: subscriptionId,
-        name: 'Shion AI',
-        description: 'Premium Plan',
-        prefill: { email: userEmail, name: userName },
-        theme: { color: '#0ea5e9' },
-        handler: () => {
-          toast.success('Premium activated!');
-          setIsOpen(false);
-          onSuccess?.();
-        },
-        modal: { ondismiss: () => setLoading(false) },
-      });
-      rzp.open();
+      const { paymentUrl } = await res.json();
+      setIsOpen(false);
+      window.open(paymentUrl, '_blank');
+      toast.info('Complete payment in the new tab.');
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
+    } finally {
       setLoading(false);
     }
   };
