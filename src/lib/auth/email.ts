@@ -108,3 +108,78 @@ export async function sendVerificationEmail(
     throw new Error(`Failed to send verification email: ${err}`);
   }
 }
+
+export async function sendPasswordResetEmail(
+  to: string,
+  name: string,
+  token: string,
+): Promise<void> {
+  const accessToken = await getMSGraphToken();
+  const sender = process.env.AZURE_EMAIL_SENDER!;
+  const baseUrl = (process.env.APP_URL || 'http://localhost:3000').replace(
+    /\/$/,
+    '',
+  );
+  const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:48px 16px;">
+        <table width="520" cellpadding="0" cellspacing="0"
+          style="background:#161b22;border-radius:12px;border:1px solid #21262d;">
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h1 style="color:#ffffff;margin:0 0 4px;font-size:22px;font-weight:700;">Shion AI</h1>
+              <p style="color:#7d8590;margin:0 0 32px;font-size:13px;">AI powered research assistant</p>
+              <h2 style="color:#ffffff;margin:0 0 12px;font-size:18px;font-weight:600;">Reset your password</h2>
+              <p style="color:#8b949e;margin:0 0 28px;font-size:14px;line-height:1.6;">
+                Hi ${name},<br><br>
+                We received a request to reset your Shion AI password. Click the button below
+                to choose a new password. This link expires in 1 hour.
+              </p>
+              <a href="${resetUrl}"
+                style="display:inline-block;background:#1f6feb;color:#ffffff;
+                       text-decoration:none;padding:12px 28px;border-radius:6px;
+                       font-size:14px;font-weight:600;">Reset Password</a>
+              <p style="color:#6e7681;margin:28px 0 0;font-size:12px;line-height:1.6;">
+                If you didn't request a password reset, you can safely ignore this email.
+                Your password will remain unchanged.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          subject: 'Reset your Shion AI password',
+          body: { contentType: 'HTML', content: html },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: false,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to send password reset email: ${err}`);
+  }
+}

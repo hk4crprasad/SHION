@@ -58,6 +58,18 @@ export const verificationTokens = pgTable('verificationTokens', {
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
 
+export const passwordResetTokens = pgTable('passwordResetTokens', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expiresAt').notNull(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
 export const subscriptions = pgTable('subscriptions', {
   id: text('id')
     .primaryKey()

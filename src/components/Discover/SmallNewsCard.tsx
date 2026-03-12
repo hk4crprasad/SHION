@@ -3,9 +3,10 @@ import Link from 'next/link';
 
 const SmallNewsCard = ({ item }: { item: Discover }) => (
   <Link
-    href={`/?q=Summary: ${item.url}`}
+    href={item.url}
     className="rounded-3xl overflow-hidden bg-light-secondary dark:bg-dark-secondary shadow-sm shadow-light-200/10 dark:shadow-black/25 group flex flex-col"
     target="_blank"
+    rel="noopener noreferrer"
   >
     <div className="relative aspect-video overflow-hidden">
       <img

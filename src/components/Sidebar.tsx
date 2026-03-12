@@ -9,6 +9,7 @@ import {
   Settings,
   Plus,
   ArrowLeft,
+  CreditCard,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
@@ -48,6 +49,12 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
       href: '/library',
       active: segments.includes('library'),
       label: 'Library',
+    },
+    {
+      icon: CreditCard,
+      href: '/pricing',
+      active: segments.includes('pricing'),
+      label: 'Pricing',
     },
   ];
 
