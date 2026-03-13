@@ -39,10 +39,24 @@ export const searchSearxng = async (
   }
 
   const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(
+      `SearxNG returned HTTP ${res.status} for query: "${query}"`,
+    );
+  }
+
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      `SearxNG returned non-JSON response (${contentType}) — the instance may be down or behind a login page.`,
+    );
+  }
+
   const data = await res.json();
 
-  const results: SearxngSearchResult[] = data.results;
-  const suggestions: string[] = data.suggestions;
+  const results: SearxngSearchResult[] = data.results ?? [];
+  const suggestions: string[] = data.suggestions ?? [];
 
   return { results, suggestions };
 };

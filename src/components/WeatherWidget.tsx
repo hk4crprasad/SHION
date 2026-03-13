@@ -16,14 +16,18 @@ const WeatherWidget = () => {
   const [loading, setLoading] = useState(true);
 
   const getApproxLocation = async () => {
-    const res = await fetch('https://ipwhois.app/json/');
-    const data = await res.json();
-
-    return {
-      latitude: data.latitude,
-      longitude: data.longitude,
-      city: data.city,
-    };
+    try {
+      const res = await fetch('https://ipwhois.app/json/');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        city: data.city,
+      };
+    } catch {
+      return null;
+    }
   };
 
   const getLocation = async (
@@ -59,13 +63,16 @@ const WeatherWidget = () => {
           });
         });
       } else if (result.state === 'prompt') {
-        callback(await getApproxLocation());
+        const approxLoc = await getApproxLocation();
+        if (approxLoc) callback(approxLoc);
         navigator.geolocation.getCurrentPosition((position) => {});
       } else if (result.state === 'denied') {
-        callback(await getApproxLocation());
+        const approxLoc = await getApproxLocation();
+        if (approxLoc) callback(approxLoc);
       }
     } else {
-      callback(await getApproxLocation());
+      const approxLoc = await getApproxLocation();
+      if (approxLoc) callback(approxLoc);
     }
   };
 
@@ -131,11 +138,15 @@ const WeatherWidget = () => {
       ) : (
         <>
           <div className="flex flex-col items-center justify-center w-16 min-w-16 max-w-16 h-full">
-            <img
-              src={`/weather-ico/${data.icon}.svg`}
-              alt={data.condition}
-              className="h-10 w-auto"
-            />
+            {data.icon ? (
+              <img
+                src={`/weather-ico/${data.icon}.svg`}
+                alt={data.condition}
+                className="h-10 w-auto"
+              />
+            ) : (
+              <div className="h-10 w-10" />
+            )}
             <span className="text-base font-semibold text-black dark:text-white">
               {data.temperature}°{data.temperatureUnit}
             </span>
